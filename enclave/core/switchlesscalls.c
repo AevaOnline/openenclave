@@ -7,6 +7,7 @@
 #include <openenclave/internal/atomic.h>
 #include <openenclave/internal/raise.h>
 #include <openenclave/internal/utils.h>
+#include "tee_t.h"
 
 // The number of host thread workers. Initialized by host through ECALL
 static size_t _host_worker_count = 0;
@@ -37,40 +38,29 @@ bool oe_is_switchless_initialized()
 **
 **==============================================================================
 */
-oe_result_t oe_handle_init_switchless(uint64_t arg_in)
+oe_result_t oe_handle_init_switchless(oe_switchless_call_manager_t* manager)
 {
     oe_result_t result = OE_UNEXPECTED;
-    oe_switchless_call_manager_t* manager = NULL;
-    oe_switchless_call_manager_t safe_manager;
     size_t contexts_size, threads_size;
 
-    if (arg_in == 0)
-        OE_RAISE(OE_INVALID_PARAMETER);
-
-    manager = (oe_switchless_call_manager_t*)arg_in;
-    safe_manager = *manager;
-
     contexts_size =
-        sizeof(oe_host_worker_context_t) * safe_manager.num_host_workers;
-    threads_size = sizeof(oe_thread_t) * safe_manager.num_host_workers;
+        sizeof(oe_host_worker_context_t) * manager->num_host_workers;
+    threads_size = sizeof(oe_thread_t) * manager->num_host_workers;
 
-    // Ensure the switchless manager and its arrays are outside of enclave
-    if (!oe_is_outside_enclave(manager, sizeof(oe_switchless_call_manager_t)) ||
-        !oe_is_outside_enclave(
-            safe_manager.host_worker_contexts, contexts_size) ||
-        !oe_is_outside_enclave(
-            safe_manager.host_worker_threads, threads_size) ||
-        safe_manager.num_host_workers == 0)
+    // Ensure the members of the switchless manager are outside of enclave.
+    if (!oe_is_outside_enclave(manager->host_worker_contexts, contexts_size) ||
+        !oe_is_outside_enclave(manager->host_worker_threads, threads_size) ||
+        manager->num_host_workers == 0)
     {
         OE_RAISE(OE_INVALID_PARAMETER);
     }
 
-    /* lfence after checks. */
+    // lfence after checks.
     oe_lfence();
 
-    // Copy the worker context array pointer and its size to avoid TOCTOU
-    _host_worker_count = safe_manager.num_host_workers;
-    _host_worker_contexts = safe_manager.host_worker_contexts;
+    // Copy the worker context array pointer and its size to avoid TOCTOU.
+    _host_worker_count = manager->num_host_workers;
+    _host_worker_contexts = manager->host_worker_contexts;
     result = OE_OK;
 
 done:
