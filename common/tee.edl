@@ -15,6 +15,7 @@
 enclave
 {
     include "openenclave/bits/types.h"
+    include "openenclave/internal/switchless.h"
 
     trusted
     {
@@ -43,6 +44,9 @@ enclave
             [out, size=key_info_size] void* key_info,
             size_t key_info_size,
             [out] size_t* key_info_size_out);
+
+        public oe_result_t oe_handle_init_switchless(
+            [in] oe_switchless_call_manager_t* manager);
     };
 
     untrusted
